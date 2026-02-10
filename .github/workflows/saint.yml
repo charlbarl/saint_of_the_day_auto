@@ -1,1 +1,26 @@
+name: Update Saint of the Day
 
+on:
+  schedule:
+    - cron: '15 5 * * *'  # daily UTC
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+      - run: node scripts/fetch_saint.js
+
+      - run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add assets/data/saint_of_day.json
+          git commit -m "Update Saint of the Day" || echo "No changes"
+          git push
