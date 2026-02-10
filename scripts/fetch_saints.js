@@ -24,8 +24,6 @@ function fetch(url) {
   const parser = new XMLParser({ ignoreAttributes: false });
   const feed = parser.parse(xml);
 
-  console.log('Parsed feed keys:', Object.keys(feed));
-
   const channel = feed?.rss?.channel;
   if (!channel) {
     console.error('NO CHANNEL FOUND');
@@ -56,7 +54,4 @@ function fetch(url) {
 
   fs.writeFileSync(OUT, JSON.stringify(output, null, 2));
   console.log('Wrote file:', OUT);
-})();
-
-  fs.writeFileSync(OUT, JSON.stringify(output, null, 2));
 })();
