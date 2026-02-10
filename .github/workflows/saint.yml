@@ -2,9 +2,8 @@ name: Update Saint of the Day JSON
 
 on:
   schedule:
-    # Runs every day at 00:05 UTC
-    - cron: "5 0 * * *"
-  workflow_dispatch: # allows manual trigger
+    - cron: "5 0 * * *"  # runs daily at 00:05 UTC
+  workflow_dispatch:     # allows manual trigger
   push:
     branches:
       - main
@@ -14,38 +13,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout the repo
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      # 2️⃣ Setup Node.js
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
-      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: npm install fast-xml-parser
 
-      # 4️⃣ Run the fetch script
       - name: Run fetch_saints.js
         run: node scripts/fetch_saints.js
 
-      # 5️⃣ Debug: show JSON file
-      - name: Debug: list assets/data/
+      - name: "Debug: list assets/data/"
         run: |
           pwd
           ls -R assets/data
 
-      # 6️⃣ Upload JSON to Neocities
       - name: Upload to Neocities
         env:
           NEOCITIES_USER: ${{ secrets.NEOCITIES_USER }}
           NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
         run: |
           echo "Uploading saint_of_day.json to Neocities..."
-          curl -v -u "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
-               -F "file=@assets/data/saint_of_day.json" \
-               https://neocities.org/api/upload
-
+          curl -v -u "$NEOCITIES_USER:$NEOCITIES_API_KEY" -F "file=@assets/data/saint_of_day.json" https://neocities.org/api/upload
