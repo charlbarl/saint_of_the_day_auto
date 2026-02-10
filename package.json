@@ -1,1 +1,8 @@
-
+{
+  "name": "saint_of_the_day_auto",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "fast-xml-parser": "^4.2.4"
+  }
+}
