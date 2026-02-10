@@ -54,4 +54,4 @@ function fetch(url) {
 
   fs.writeFileSync(OUT, JSON.stringify(output, null, 2));
   console.log('Wrote file:', OUT);
-})();
+})(); 
