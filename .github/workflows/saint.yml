@@ -14,6 +14,7 @@ jobs:
     env:
       NEOCITIES_USER: ${{ secrets.NEOCITIES_USER }}
       NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       # 1️⃣ Checkout repo
       - name: Checkout repo
@@ -52,8 +53,7 @@ jobs:
           else
             echo "No changes to commit."
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
 
       # 7️⃣ Upload JSON to Neocities
@@ -67,7 +67,7 @@ jobs:
           echo "User length: length: ${#NEOCITIES_USER}"
           echo "API key length: ${#NEOCITIES_API_KEY}"
           ls -l assets/data/saint_of_day.json
-          curl -v --user $NEOCITIES_USER:$NEOCITIES_API_KEY \
+          curl -v --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
                -F "file=@assets/data/saint_of_day.json" \
                https://neocities.org/api/upload
 
