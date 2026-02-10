@@ -57,11 +57,13 @@ jobs:
 
 
       # 7️⃣ Upload JSON to Neocities
-      - name: Upload to Neocities
+      - name: Upload saint_of_day.json to Neocities
         run: |
-          echo "Check JSON exists:"
-          ls -l assets/data/saint_of_day.json
-          echo "Uploading saint_of_day.json to Neocities..."
+          curl --fail \
+            --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
+            -F "assets/data/saint_of_day.json=@assets/data/saint_of_day.json" \
+            https://neocities.org/api/upload
+
       - name: Debug env & file
         run: |
           echo "User length: length: ${#NEOCITIES_USER}"
