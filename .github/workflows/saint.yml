@@ -63,6 +63,11 @@ jobs:
           echo "Check JSON exists:"
           ls -l assets/data/saint_of_day.json
           echo "Uploading saint_of_day.json to Neocities..."
+      - name: Debug env & file
+        run: |
+          echo "User: $NEOCITIES_USER"
+          echo "API key length: ${#NEOCITIES_API_KEY}"
+          ls -l assets/data/saint_of_day.json
           curl -v --user $NEOCITIES_USER:$NEOCITIES_API_KEY \
                -F "file=@assets/data/saint_of_day.json" \
                https://neocities.org/api/upload
