@@ -67,7 +67,7 @@ jobs:
           echo "User length: length: ${#NEOCITIES_USER}"
           echo "API key length: ${#NEOCITIES_API_KEY}"
           ls -l assets/data/saint_of_day.json
-          curl -v --user ${#NEOCITIES_USER}:${#NEOCITIES_API_KEY} \
+          curl -v --user $NEOCITIES_USER:$NEOCITIES_API_KEY \
                -F "file=@assets/data/saint_of_day.json" \
                https://neocities.org/api/upload
 
