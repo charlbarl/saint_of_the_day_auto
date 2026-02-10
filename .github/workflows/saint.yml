@@ -3,7 +3,7 @@ name: Update Saint of the Day JSON
 on:
   schedule:
     - cron: "5 0 * * *"  # runs daily at 00:05 UTC
-  workflow_dispatch:     # allows manual trigger
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -13,25 +13,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout repo
       - name: Checkout repo
         uses: actions/checkout@v3
 
+      # 2️⃣ Setup Node.js
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: npm install fast-xml-parser
 
+      # 4️⃣ Run fetch_saints.js to generate JSON
       - name: Run fetch_saints.js
         run: node scripts/fetch_saints.js
 
+      # 5️⃣ Debug: list JSON file
       - name: "Debug: list assets/data/"
         run: |
           pwd
           ls -R assets/data
 
+      # 6️⃣ Commit updated JSON back to GitHub
+      - name: Commit and push updated JSON
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add assets/data/saint_of_day.json
+          git diff --cached --quiet || git commit -m "Update Saint of the Day JSON [ci skip]"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 7️⃣ Upload JSON to Neocities
       - name: Upload to Neocities
         env:
           NEOCITIES_USER: ${{ secrets.NEOCITIES_USER }}
