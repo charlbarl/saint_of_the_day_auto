@@ -11,7 +11,9 @@ on:
 jobs:
   update-json:
     runs-on: ubuntu-latest
-
+    env:
+      NEOCITIES_USER: ${{ secrets.NEOCITIES_USER }}
+      NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
     steps:
       # 1️⃣ Checkout repo
       - name: Checkout repo
@@ -56,9 +58,6 @@ jobs:
 
       # 7️⃣ Upload JSON to Neocities
       - name: Upload to Neocities
-        env:
-          NEOCITIES_USER: ${{ secrets.NEOCITIES_USER }}
-          NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
         run: |
           echo "Check JSON exists:"
           ls -l assets/data/saint_of_day.json
