@@ -17,9 +17,6 @@ jobs:
       # 1️⃣ Checkout the repo
       - name: Checkout repo
         uses: actions/checkout@v3
-        with:
-          persist-credentials: true
-          fetch-depth: 0
 
       # 2️⃣ Setup Node.js
       - name: Setup Node
@@ -35,11 +32,13 @@ jobs:
       - name: Run fetch_saints.js
         run: node scripts/fetch_saints.js
 
-      # 5️⃣ Debug: list JSON
-      - name: Check JSON exists
-        run: ls -l assets/data/
+      # 5️⃣ Debug: show JSON file
+      - name: Debug: list assets/data/
+        run: |
+          pwd
+          ls -R assets/data
 
-      # 6️⃣ Upload to Neocities
+      # 6️⃣ Upload JSON to Neocities
       - name: Upload to Neocities
         env:
           NEOCITIES_USER: ${{ secrets.NEOCITIES_USER }}
@@ -49,3 +48,4 @@ jobs:
           curl -v -u "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
                -F "file=@assets/data/saint_of_day.json" \
                https://neocities.org/api/upload
+
