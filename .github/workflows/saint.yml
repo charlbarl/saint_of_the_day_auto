@@ -2,9 +2,9 @@ name: Update Saint of the Day JSON
 
 on:
   schedule:
-    # Runs every day at 00:05 UTC (adjust if needed)
+    # Runs every day at 00:05 UTC
     - cron: "5 0 * * *"
-  workflow_dispatch: # allows manual run
+  workflow_dispatch: # allows manual trigger
   push:
     branches:
       - main
@@ -17,6 +17,9 @@ jobs:
       # 1️⃣ Checkout the repo
       - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true
+          fetch-depth: 0
 
       # 2️⃣ Setup Node.js
       - name: Setup Node
@@ -32,21 +35,17 @@ jobs:
       - name: Run fetch_saints.js
         run: node scripts/fetch_saints.js
 
-      # 5️⃣ Commit updated JSON back to GitHub
-      - name: Commit JSON to GitHub
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add assets/data/saint_of_day.json
-          git commit -m "Update Saint of the Day JSON" || echo "No changes to commit"
-          git push origin main
+      # 5️⃣ Debug: list JSON
+      - name: Check JSON exists
+        run: ls -l assets/data/
 
-      # 6️⃣ Upload JSON to Neocities
+      # 6️⃣ Upload to Neocities
       - name: Upload to Neocities
         env:
           NEOCITIES_USER: ${{ secrets.NEOCITIES_USER }}
           NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
         run: |
-          curl -u "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
+          echo "Uploading saint_of_day.json to Neocities..."
+          curl -v -u "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
                -F "file=@assets/data/saint_of_day.json" \
                https://neocities.org/api/upload
