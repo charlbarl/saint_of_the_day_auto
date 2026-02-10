@@ -60,8 +60,11 @@ jobs:
           NEOCITIES_USER: ${{ secrets.NEOCITIES_USER }}
           NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
         run: |
+          echo "Check JSON exists:"
+          ls -l assets/data/saint_of_day.json
           echo "Uploading saint_of_day.json to Neocities..."
-          curl -v --user "${NEOCITIES_USER}:${NEOCITIES_API_KEY}" \
-           -F "file=@assets/data/saint_of_day.json" \
-           https://neocities.org/api/upload
+          curl -v --user $NEOCITIES_USER:$NEOCITIES_API_KEY \
+               -F "file=@assets/data/saint_of_day.json" \
+               https://neocities.org/api/upload
+
 
