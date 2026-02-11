@@ -25,33 +25,33 @@ jobs:
       NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
 
     steps:
-      # 1️⃣ Checkout code
+      # 1) Checkout
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2️⃣ Setup Node.js
+      # 2) Node
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # 3️⃣ Install dependencies (without modifying package.json)
+      # 3) Install deps (don’t mutate package.json)
       - name: Install dependencies
         run: npm install --no-save fast-xml-parser
 
-      # 4️⃣ Run script to generate JSON
+      # 4) Generate JSON
       - name: Generate saint_of_day.json
         run: node scripts/fetch_saints.js
 
-      # 5️⃣ Debug: show file + hash
+      # 5) Inspect
       - name: Inspect generated file
         run: |
           ls -l assets/data/saint_of_day.json
           (sha256sum assets/data/saint_of_day.json || shasum -a 256 assets/data/saint_of_day.json) 2>/dev/null || true
 
-      # 6️⃣ Commit JSON to repo if changed
+      # 6) Commit only if changed
       - name: Commit and push updated JSON
         run: |
           set -e
@@ -68,37 +68,89 @@ jobs:
             echo "No changes to commit."
           fi
 
-      # 7️⃣ Delete old Neocities file (forces update)
-      - name: Delete old saint_of_day.json on Neocities
+      # 7) Upload; if Neocities says "no changes", force refresh by delete+reupload
+      - name: Upload to Neocities (force refresh if identical)
+        env:
+          FILE_PATH: assets/data/saint_of_day.json
         run: |
-          echo "Deleting existing file on Neocities..."
+          set -euo pipefail
+
+          echo "Attempting initial upload..."
+          RESP=$(curl -sS -w "\n%{http_code}" \
+            --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
+            -F "file=@${FILE_PATH}" \
+            https://neocities.org/api/upload)
+
+          # Split response and HTTP code
+          BODY=$(printf "%s" "$RESP" | sed '$d')
+          CODE=$(printf "%s" "$RESP" | tail -n1)
+
+          echo "Initial upload HTTP $CODE"
+          echo "$BODY"
+
+          # If server error, retry a couple of times before forcing delete
+          if [ "$CODE" -ge 500 ]; then
+            echo "Server error on initial upload; retrying up to 2 times..."
+            for i in 1 2; do
+              sleep 2
+              RESP=$(curl -sS -w "\n%{http_code}" \
+                --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
+                -F "file=@${FILE_PATH}" \
+                https://neocities.org/api/upload)
+              BODY=$(printf "%s" "$RESP" | sed '$d')
+              CODE=$(printf "%s" "$RESP" | tail -n1)
+              echo "Retry $i HTTP $CODE"
+              echo "$BODY"
+              [ "$CODE" -lt 500 ] && break
+            done
+          fi
+
+          # If body indicates no change, or HTTP was 200 but no-op, force delete+reupload
+          if echo "$BODY" | grep -qi '"no changes, files already up to date"'; then
+            echo "Neocities reports no changes — forcing refresh by delete + reupload."
+          elif [ "$CODE" -ge 400 ]; then
+            echo "Non-success HTTP ($CODE) on initial upload — will try delete + reupload."
+          else
+            echo "Upload succeeded; no forced refresh needed."
+            exit 0
+          fi
+
+          echo "Deleting ${FILE_PATH} on Neocities..."
+          # Try delete up to 3 times, tolerate 404/500 by proceeding to reupload anyway
           for i in 1 2 3; do
-            curl --fail \
+            DEL_RESP=$(curl -sS -w "\n%{http_code}" \
               --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
-              -F "filenames=assets/data/saint_of_day.json" \
-              https://neocities.org/api/delete && break || {
-                echo "Delete attempt $i failed, retrying..." >&2
-                sleep 2
-              }
+              -F "filenames=${FILE_PATH}" \
+              https://neocities.org/api/delete || true)
+            DEL_BODY=$(printf "%s" "$DEL_RESP" | sed '$d')
+            DEL_CODE=$(printf "%s" "$DEL_RESP" | tail -n1)
+            echo "Delete attempt $i HTTP $DEL_CODE"
+            echo "$DEL_BODY"
+
+            # If 2xx, or body mentions "file not found", proceed
+            if [ "${DEL_CODE:-500}" -lt 300 ] || echo "$DEL_BODY" | grep -qi 'not found'; then
+              break
+            fi
+            sleep 2
           done
 
-      # 8️⃣ Upload new file to Neocities (always)
-      - name: Upload new saint_of_day.json to Neocities
-        run: |
-          echo "Uploading new JSON file to Neocities..."
+          echo "Re-uploading ${FILE_PATH} after delete..."
+          # Re-upload with a couple retries
           for i in 1 2 3; do
-            curl --fail \
+            RE_RESP=$(curl -sS -w "\n%{http_code}" \
               --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
-              -F "file=@assets/data/saint_of_day.json" \
-              https://neocities.org/api/upload && break || {
-                echo "Upload attempt $i failed, retrying..." >&2
-                sleep 2
-              }
+              -F "file=@${FILE_PATH}" \
+              https://neocities.org/api/upload || true)
+            RE_BODY=$(printf "%s" "$RE_RESP" | sed '$d')
+            RE_CODE=$(printf "%s" "$RE_RESP" | tail -n1)
+            echo "Reupload attempt $i HTTP $RE_CODE"
+            echo "$RE_BODY"
+            if [ "${RE_CODE:-500}" -lt 300 ]; then
+              echo "Reupload succeeded."
+              exit 0
+            fi
+            sleep 2
           done
 
-      # 9️⃣ Optional logging for visibility
-      - name: Output Neocities response
-        run: |
-          curl -sS --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
-               -F "file=@assets/data/saint_of_day.json" \
-               https://neocities.org/api/upload | tee neocities_response.json
+          echo "Failed to force-refresh file on Neocities after delete+reupload attempts."
+          exit 1
