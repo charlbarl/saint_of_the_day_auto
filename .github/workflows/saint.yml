@@ -4,21 +4,19 @@ on:
   schedule:
     - cron: "5 6 * * *"  # runs daily at 06:05 UTC
   workflow_dispatch:
-  # Optional: keep push trigger if you want runs on manual commits to main
   push:
     branches: [ main ]
 
 permissions:
   contents: write
 
-# Prevent overlapping runs of this workflow
 concurrency:
   group: saint-json-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   update-json:
-    # Skip if the push was the bot’s own [ci skip] commit
+    # Skip if this was triggered by the bot's [ci skip] commit
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[ci skip]') }}
     runs-on: ubuntu-latest
 
@@ -27,72 +25,80 @@ jobs:
       NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
 
     steps:
-      # 1) Checkout with credentials so we can push
+      # 1️⃣ Checkout code
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2) Setup Node
-      - name: Setup Node
+      # 2️⃣ Setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # If you commit package.json/package-lock.json, you can enable:
-          # cache: 'npm'
 
-      # 3) Install dependencies without mutating package.json
-      # If you commit package.json/package-lock.json, prefer `npm ci` instead.
+      # 3️⃣ Install dependencies (without modifying package.json)
       - name: Install dependencies
         run: npm install --no-save fast-xml-parser
 
-      # 4) Generate JSON
+      # 4️⃣ Run script to generate JSON
       - name: Generate saint_of_day.json
         run: node scripts/fetch_saints.js
 
-      # 5) Debug: confirm file exists and print a hash
+      # 5️⃣ Debug: show file + hash
       - name: Inspect generated file
         run: |
-          set -e
           ls -l assets/data/saint_of_day.json
           (sha256sum assets/data/saint_of_day.json || shasum -a 256 assets/data/saint_of_day.json) 2>/dev/null || true
 
-      # 6) Commit and push updated JSON (only if changed)
+      # 6️⃣ Commit JSON to repo if changed
       - name: Commit and push updated JSON
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Only include the JSON in the commit
           git add --force assets/data/saint_of_day.json
 
           if ! git diff --cached --quiet; then
+            echo "Changes detected — committing."
             git commit -m "Update Saint of the Day JSON [ci skip]"
-            # Retry once in case of race with other pushes
             git push origin HEAD:main || (git pull --rebase origin main && git push origin HEAD:main)
           else
             echo "No changes to commit."
           fi
 
-      # 7) Always upload JSON to Neocities (Neocities no-ops if unchanged)
-      - name: Upload saint_of_day.json to Neocities
+      # 7️⃣ Delete old Neocities file (forces update)
+      - name: Delete old saint_of_day.json on Neocities
         run: |
-          set -e
+          echo "Deleting existing file on Neocities..."
+          for i in 1 2 3; do
+            curl --fail \
+              --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
+              -F "filenames=assets/data/saint_of_day.json" \
+              https://neocities.org/api/delete && break || {
+                echo "Delete attempt $i failed, retrying..." >&2
+                sleep 2
+              }
+          done
+
+      # 8️⃣ Upload new file to Neocities (always)
+      - name: Upload new saint_of_day.json to Neocities
+        run: |
+          echo "Uploading new JSON file to Neocities..."
           for i in 1 2 3; do
             curl --fail \
               --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
               -F "file=@assets/data/saint_of_day.json" \
               https://neocities.org/api/upload && break || {
-                echo "Upload attempt $i failed; retrying..." >&2
-                sleep 3
+                echo "Upload attempt $i failed, retrying..." >&2
+                sleep 2
               }
           done
 
-      # 8) (Optional) Log Neocities response
-      - name: Log Neocities response (optional)
+      # 9️⃣ Optional logging for visibility
+      - name: Output Neocities response
         run: |
           curl -sS --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
                -F "file=@assets/data/saint_of_day.json" \
                https://neocities.org/api/upload | tee neocities_response.json
-          echo "Neocities response saved to neocities_response.json"
