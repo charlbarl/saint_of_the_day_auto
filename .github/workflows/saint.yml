@@ -4,10 +4,11 @@ on:
   schedule:
     - cron: "5 6 * * *"  # runs daily at 06:05 UTC
   workflow_dispatch:
-  # Optional: if you keep push, ensure we skip on [ci skip]
+  # Optional: keep push trigger if you want runs on manual commits to main
   push:
     branches: [ main ]
 
+# Ensure the workflow's GITHUB_TOKEN can write to the repo
 permissions:
   contents: write
 
@@ -18,53 +19,51 @@ concurrency:
 
 jobs:
   update-json:
-    # Skip if the push was the bot’s own [ci skip] commit
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[ci skip]') }}
-
     runs-on: ubuntu-latest
+
     env:
       NEOCITIES_USER: ${{ secrets.NEOCITIES_USER }}
       NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
 
     steps:
+      # 1) Checkout with credentials so we can push
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # 2) Setup Node
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # If you commit package.json/lock, uncomment:
+          # If you commit package.json/package-lock.json, uncomment:
           # cache: 'npm'
 
-      # If you commit package.json/lock:
-      # - name: Install dependencies
-      #   run: npm ci
-
-      # Since you currently install ad-hoc:
+      # 3) Install dependencies
+      # If you commit package.json/package-lock.json, prefer `npm ci` instead.
       - name: Install dependencies
         run: npm install fast-xml-parser
 
-      - name: Generate JSON
+      # 4) Generate JSON
+      - name: Generate saint_of_day.json
         run: node scripts/fetch_saints.js
 
-      - name: Debug: list & hash JSON
+      # 5) Debug: confirm file exists and print a hash
+      - name: Inspect generated file
         run: |
+          set -e
           ls -l assets/data/saint_of_day.json
-          # Print a stable hash to compare runs (Linux shasum fallback helps macOS locally)
           (sha256sum assets/data/saint_of_day.json || shasum -a 256 assets/data/saint_of_day.json) 2>/dev/null || true
 
-      - name: Rebase on latest main (avoid non-FF push)
+      # 6) Rebase on latest main (avoids non-fast-forward push)
+      - name: Sync with latest main
         run: |
           git fetch origin
           git checkout main
           git rebase origin/main || git rebase --abort
 
-      - name: Show working tree diff (for debugging)
-        run: git diff -- assets/data/saint_of_day.json || true
-
+      # 7) Commit and push updated JSON (only if changed)
       - name: Commit and push updated JSON
         run: |
           set -e
@@ -81,8 +80,10 @@ jobs:
             echo "No changes to commit."
           fi
 
-      - name: Upload saint_of_day.json to Neocities (with retry)
+      # 8) Always upload JSON to Neocities (Neocities no-ops if unchanged)
+      - name: Upload saint_of_day.json to Neocities
         run: |
+          set -e
           for i in 1 2 3; do
             curl --fail \
               --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
@@ -93,9 +94,10 @@ jobs:
               }
           done
 
-      - name: Debug Neocities response
+      # 9) (Optional) Log Neocities response once more for visibility
+      - name: Log Neocities response (optional)
         run: |
           curl -sS --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
                -F "file=@assets/data/saint_of_day.json" \
                https://neocities.org/api/upload | tee neocities_response.json
-          echo "Response saved to neocities_response.json"
+          echo "Neocities response saved to neocities_response.json"
