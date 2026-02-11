@@ -2,11 +2,15 @@ name: Update Saint of the Day JSON
 
 on:
   schedule:
-    - cron: "5 6 * * *"  # runs daily at 00:05 UTC
+    - cron: "5 6 * * *"  # runs daily at 06:05 UTC (← comment fixed)
   workflow_dispatch:
   push:
     branches:
       - main
+
+# Ensure the workflow's GITHUB_TOKEN can write to the repo
+permissions:
+  contents: write
 
 jobs:
   update-json:
@@ -14,19 +18,24 @@ jobs:
     env:
       NEOCITIES_USER: ${{ secrets.NEOCITIES_USER }}
       NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Do NOT redefine GITHUB_TOKEN here; GitHub provides it automatically.
+
     steps:
-      # 1️⃣ Checkout repo
+      # 1️⃣ Checkout repo with credentials
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # default persist-credentials: true (keep it)
 
       # 2️⃣ Setup Node.js
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       # 3️⃣ Install dependencies
+      # TIP: Prefer committing a package.json and using `npm ci`.
       - name: Install dependencies
         run: npm install fast-xml-parser
 
@@ -44,33 +53,33 @@ jobs:
       - name: Commit and push updated JSON
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add assets/data/saint_of_day.json
+
           # Only commit if changes exist
           if ! git diff --cached --quiet; then
             git commit -m "Update Saint of the Day JSON [ci skip]"
+            # Push to main (will succeed if permissions + no blocking branch protection)
             git push origin HEAD:main
           else
             echo "No changes to commit."
           fi
 
-
-
       # 7️⃣ Upload JSON to Neocities
       - name: Upload saint_of_day.json to Neocities
         run: |
+          # Neocities expects the field name 'file' (your next debug step already uses it)
           curl --fail \
             --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
-            -F "assets/data/saint_of_day.json=@assets/data/saint_of_day.json" \
+            -F "file=@assets/data/saint_of_day.json" \
             https://neocities.org/api/upload
 
       - name: Debug env & file
         run: |
-          echo "User length: length: ${#NEOCITIES_USER}"
+          echo "User length: ${#NEOCITIES_USER}"
           echo "API key length: ${#NEOCITIES_API_KEY}"
           ls -l assets/data/saint_of_day.json
           curl -v --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
                -F "file=@assets/data/saint_of_day.json" \
                https://neocities.org/api/upload
-
-
