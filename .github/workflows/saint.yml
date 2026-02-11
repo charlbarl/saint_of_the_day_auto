@@ -8,7 +8,6 @@ on:
   push:
     branches: [ main ]
 
-# Ensure the workflow's GITHUB_TOKEN can write to the repo
 permissions:
   contents: write
 
@@ -19,6 +18,8 @@ concurrency:
 
 jobs:
   update-json:
+    # Skip if the push was the bot’s own [ci skip] commit
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[ci skip]') }}
     runs-on: ubuntu-latest
 
     env:
@@ -37,13 +38,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # If you commit package.json/package-lock.json, uncomment:
+          # If you commit package.json/package-lock.json, you can enable:
           # cache: 'npm'
 
-      # 3) Install dependencies
+      # 3) Install dependencies without mutating package.json
       # If you commit package.json/package-lock.json, prefer `npm ci` instead.
       - name: Install dependencies
-        run: npm install fast-xml-parser
+        run: npm install --no-save fast-xml-parser
 
       # 4) Generate JSON
       - name: Generate saint_of_day.json
@@ -56,21 +57,15 @@ jobs:
           ls -l assets/data/saint_of_day.json
           (sha256sum assets/data/saint_of_day.json || shasum -a 256 assets/data/saint_of_day.json) 2>/dev/null || true
 
-      # 6) Rebase on latest main (avoids non-fast-forward push)
-      - name: Sync with latest main
-        run: |
-          git fetch origin
-          git checkout main
-          git rebase origin/main || git rebase --abort
-
-      # 7) Commit and push updated JSON (only if changed)
+      # 6) Commit and push updated JSON (only if changed)
       - name: Commit and push updated JSON
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add assets/data/saint_of_day.json
+          # Only include the JSON in the commit
+          git add --force assets/data/saint_of_day.json
 
           if ! git diff --cached --quiet; then
             git commit -m "Update Saint of the Day JSON [ci skip]"
@@ -80,7 +75,7 @@ jobs:
             echo "No changes to commit."
           fi
 
-      # 8) Always upload JSON to Neocities (Neocities no-ops if unchanged)
+      # 7) Always upload JSON to Neocities (Neocities no-ops if unchanged)
       - name: Upload saint_of_day.json to Neocities
         run: |
           set -e
@@ -94,7 +89,7 @@ jobs:
               }
           done
 
-      # 9) (Optional) Log Neocities response once more for visibility
+      # 8) (Optional) Log Neocities response
       - name: Log Neocities response (optional)
         run: |
           curl -sS --user "$NEOCITIES_USER:$NEOCITIES_API_KEY" \
